@@ -1,0 +1,70 @@
+name: Deploy Quarkus to OCI Free Tier
+
+on:
+  push:
+    branches: [ "main" ] # Triggers the deployment on pushes to main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 1. Set up Java and GraalVM for Native Compilation
+    - name: Set up GraalVM For Native Compilation
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '21' # Match your project's Java version
+        distribution: 'graalvm'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        native-image-job-reports: 'true'
+
+    # 2. Build the lightweight native executable
+    - name: Build Native Executable with Maven
+      run: ./mvnw package -Dnative -Dquarkus.native.container-build=false
+
+    # Alternatively, if you use Gradle, uncomment below and comment the maven line:
+    # - name: Build Native Executable with Gradle
+    #   run: ./gradlew build -Dquarkus.package.type=native
+
+    # 3. Copy the native binary to the OCI Instance via SSH/SCP
+    - name: Copy Executable to OCI Instance
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.OCI_HOST_IP }}
+        username: ubuntu
+        key: ${{ secrets.OCI_SSH_KEY }}
+        source: "target/*-runner" # Matches Quarkus native maven output pattern
+        target: "~/app"
+        strip_components: 1
+
+    # 4. SSH into the box, stop old version, and spin up the new one as a background service
+    - name: Execute Remote Deployment Commands
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.OCI_HOST_IP }}
+        username: ubuntu
+        key: ${{ secrets.OCI_SSH_KEY }}
+        script: |
+          # Create app directory if missing
+          mkdir -p ~/app
+          cd ~/app
+          
+          # Make binary executable
+          chmod +x *-runner
+          
+          # Kill any existing application running on port 8080 smoothly
+          PID=$(lsof -t -i:8080)
+          if [ -not -z "$PID" ]; then
+            echo "Stopping older instance with PID: $PID"
+            kill -15 $PID
+            sleep 3
+          fi
+          
+          # Start the new application version cleanly in the background
+          # Native binaries start in milliseconds and use very little memory!
+          nohup ./*-runner > app.log 2>&1 &
+          
+          echo "Deployment complete. Application logging redirected to app.log"
