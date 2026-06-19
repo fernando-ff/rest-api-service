@@ -3,6 +3,7 @@ name: Deploy Quarkus to OCI Free Tier
 on:
   push:
     branches: [ "main" ] # Triggers the deployment on pushes to main
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
