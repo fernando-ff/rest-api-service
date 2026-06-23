@@ -50,31 +50,40 @@ resource "oci_core_default_route_table" "quarkus_rt" {
 }
 
 # ------------------------------------------------------------------------------
-# 5. SECURITY LIST / FIREWALL (Stateful Ingress & Egress Rules)
+# 5. SECURITY LIST / FIREWALL (Custom Dedicated Rules)
 # ------------------------------------------------------------------------------
-resource "oci_core_default_security_list" "quarkus_sl" {
-  manage_default_resource_id = oci_core_vcn.quarkus_vcn.default_security_list_id
+resource "oci_core_security_list" "quarkus_custom_sl" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.quarkus_vcn.id
+  display_name   = "quarkus_custom_security_list"
 
-  # Egress: Allow all outbound traffic
+  # Egress: Permite todo o tráfego de saída do servidor para a internet
   egress_security_rules {
     destination = "0.0.0.0/0"
-    protocol    = "all"
+    protocol    = "all" # Todos os protocolos
+    stateless   = false
   }
 
-  # Ingress: Allow SSH Management (Port 22)
+  # Ingress: Permite SSH (Porta 22) de qualquer origem
   ingress_security_rules {
-    protocol = "6" # TCP
-    source   = "0.0.0.0/0"
+    protocol    = "6" # TCP
+    source      = "0.0.0.0/0"
+    stateless   = false
+    description = "Allow SSH Management"
+    
     tcp_options {
       min = 22
       max = 22
     }
   }
 
-  # Ingress: Allow Quarkus Web Application Framework (Port 8080)
+  # Ingress: Permite tráfego Web para o Quarkus (Porta 8080) de qualquer origem
   ingress_security_rules {
-    protocol = "6" # TCP
-    source   = "0.0.0.0/0"
+    protocol    = "6" # TCP
+    source      = "0.0.0.0/0"
+    stateless   = false
+    description = "Allow Quarkus Application Port"
+
     tcp_options {
       min = 8080
       max = 8080
@@ -91,16 +100,18 @@ resource "oci_core_subnet" "quarkus_subnet" {
   vcn_id            = oci_core_vcn.quarkus_vcn.id
   display_name      = "quarkus_subnet"
   dns_label         = "quarkussubnet"
-  security_list_ids = [oci_core_vcn.quarkus_vcn.default_security_list_id]
+  
+  # ATENÇÃO: Mudança feita aqui para apontar para o novo recurso customizado
+  security_list_ids = [oci_core_security_list.quarkus_custom_sl.id]
 }
 
 # ------------------------------------------------------------------------------
-# 7. ALWAYS FREE AMPERE ARM VIRTUAL MACHINE INSTANCE (4 OCPUs, 24 GB RAM)
+# 7. ALWAYS FREE AMPERE ARM VIRTUAL MACHINE INSTANCE
 # ------------------------------------------------------------------------------
 resource "oci_core_instance" "quarkus_server" {
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
   compartment_id      = var.compartment_ocid
-  shape               = "VM.Standard.E2.1.Micro" # Changed from A1.Flex
+  shape               = "VM.Standard.E2.1.Micro"
   
   display_name = "quarkus-free-tier-server"
 
@@ -111,12 +122,30 @@ resource "oci_core_instance" "quarkus_server" {
 
   source_details {
     source_type = "image"
-    # Replaces the hardcoded sa-vinhedo-1 string with the latest image ID found
     source_id   = data.oci_core_images.ubuntu_arm.images[0].id
   }
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key
+    
+    # Versão definitiva: Usa comandos nativos do iptables em vez de editar arquivos texto com SED
+    user_data = base64encode(<<-EOF
+      #!/bin/bash
+      # 1. Aguarda o sistema operacional carregar o serviço de rede
+      sleep 15
+      
+      # 2. Força a inserção da regra na linha 1 do firewall em memória
+      sudo iptables -I INPUT 1 -p tcp --dport 8080 -j ACCEPT
+      
+      # 3. Salva a memória atual direto no arquivo definitivo do Ubuntu
+      sudo netfilter-persistent save
+      sudo netfilter-persistent reload
+
+      # 4. Prepara o diretório para o deploy do GitHub Actions
+      mkdir -p /home/ubuntu/app
+      chown ubuntu:ubuntu /home/ubuntu/app
+    EOF
+    )
   }
 }
 
@@ -142,4 +171,3 @@ data "oci_core_images" "ubuntu_arm" {
   shape                    = "VM.Standard.E2.1.Micro" # Changed filter  sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
 }
-
