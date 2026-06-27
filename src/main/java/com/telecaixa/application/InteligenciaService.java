@@ -28,7 +28,7 @@ public class InteligenciaService {
         {
            "data": "AAAA-MM-DD",
            "hora": "HH:MM:SS",
-           "serviço": "NOME_DO_SERVIÇO"
+           "servico": "NOME_DO_SERVIÇO"
         }
         
         Se faltar alguma informação (como a hora), deixe o campo respectivo como null.
