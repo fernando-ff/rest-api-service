@@ -13,11 +13,11 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 1. Set up Java and GraalVM for Native Compilation
+    # 1. Set up Java and GraalVM for Native Compilation (Ajustado para Java 17)
     - name: Set up GraalVM For Native Compilation
       uses: graalvm/setup-graalvm@v1
       with:
-        java-version: '21' # Match your project's Java version
+        java-version: '17' # Versão ajustada para dar match com o seu projeto
         distribution: 'graalvm'
         github-token: ${{ secrets.GITHUB_TOKEN }}
         native-image-job-reports: 'true'
@@ -41,7 +41,7 @@ jobs:
         target: "~/app"
         strip_components: 1
 
-    # 4. SSH into the box, stop old version, and spin up the new one as a background service
+    # 4. SSH into the box, stop old version, and spin up the new one injecting the Secrets
     - name: Execute Remote Deployment Commands
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -58,14 +58,21 @@ jobs:
           
           # Kill any existing application running on port 8080 smoothly
           PID=$(lsof -t -i:8080)
-          if [ -not -z "$PID" ]; then
+          if [ -n "$PID" ]; then
             echo "Stopping older instance with PID: $PID"
             kill -15 $PID
             sleep 3
+            # Força a parada caso o processo demore a encerrar
+            kill -9 $PID 2>/dev/null || true
           fi
           
           # Start the new application version cleanly in the background
           # Native binaries start in milliseconds and use very little memory!
-          nohup ./*-runner > app.log 2>&1 &
+          # Injecting repository secrets as process-specific environment variables
+          nohup env \
+            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+            GOOGLE_CALENDAR_ID="${{ secrets.GOOGLE_CALENDAR_ID }}" \
+            ./*-runner > app.log 2>&1 &
           
           echo "Deployment complete. Application logging redirected to app.log"
