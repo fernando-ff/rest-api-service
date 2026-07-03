@@ -17,9 +17,8 @@ jobs:
     - name: Set up GraalVM For Native Compilation
       uses: graalvm/setup-graalvm@v1
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'graalvm'
-        version: '23.1.2' # Força uma versão de release da GraalVM compatível com o ecossistema do seu Quarkus
         github-token: ${{ secrets.GITHUB_TOKEN }}
         native-image-job-reports: 'true'
 
