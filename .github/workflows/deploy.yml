@@ -13,12 +13,13 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 1. Set up Java and GraalVM for Native Compilation (Ajustado para Java 17)
+    # 1. Set up Java and GraalVM for Native Compilation
     - name: Set up GraalVM For Native Compilation
       uses: graalvm/setup-graalvm@v1
       with:
-        java-version: '17' # Versão ajustada para dar match com o seu projeto
+        java-version: '17'
         distribution: 'graalvm'
+        version: '23.1.2' # Força uma versão de release da GraalVM compatível com o ecossistema do seu Quarkus
         github-token: ${{ secrets.GITHUB_TOKEN }}
         native-image-job-reports: 'true'
 
