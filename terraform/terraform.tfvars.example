@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and fill in your actual values
+# cp terraform.tfvars.example terraform.tfvars
+
+# compartment_ocid = "ocid1.compartment.oc1..YOUR_COMPARTMENT_OCID_HERE"
+# tenancy_ocid     = "ocid1.tenancy.oc1..YOUR_TENANCY_OCID_HERE"
+# user_ocid        = "ocid1.user.oc1..YOUR_USER_OCID_HERE"
+# fingerprint      = "YOUR_API_KEY_FINGERPRINT"
+# private_key_path = "./oci_api_key.pem"
+# region           = "sa-saopaulo-1"
+# ssh_public_key   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDy59cGcMIHU2s59ddvOMWV9m/BNkLWZIoU9492hMs5e your.email@example.com"
+
+# DuckDNS (free): use your subdomain like myapp.duckdns.org
+# and the token from the DuckDNS dashboard.
+duckdns_domain   = "rest-api-service-telegram.duckdns.org"
+duckdns_token    = "ebaf8875-41ac-44d4-947f-fc88263d0a2f"
+letsencrypt_email = "fferreiralf.1@gmail.com"
