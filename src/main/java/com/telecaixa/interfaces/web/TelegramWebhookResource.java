@@ -4,6 +4,7 @@ import com.telecaixa.application.CalendarIntegrationService;
 import com.telecaixa.application.InteligenciaService;
 import com.telecaixa.infrastructure.telegram.TelegramSpecs.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -29,7 +30,12 @@ public class TelegramWebhookResource {
     ObjectMapper objectMapper; // Injetado nativamente pelo Quarkus (Jackson)
 
     // Record local para mapear o JSON estrito que o Gemini devolve
+    @RegisterForReflection
     public record DadosAgendamento(String data, String hora, String servico) {}
+
+    public DadosAgendamento parseDadosAgendamento(String jsonIa) throws Exception {
+        return objectMapper.readValue(jsonIa, DadosAgendamento.class);
+    }
 
     @POST
     @Path("/webhook")
@@ -60,7 +66,7 @@ public class TelegramWebhookResource {
                     LOG.debugf("🧠 Resposta da IA: %s", jsonIa);
                     try {
                         // 1. Converte a String JSON da IA em um Objeto Java com segurança
-                        DadosAgendamento agendamento = objectMapper.readValue(jsonIa, DadosAgendamento.class);
+                        DadosAgendamento agendamento = parseDadosAgendamento(jsonIa);
                         LOG.infof("📝 Dados parseados - Serviço: %s, Data: %s, Hora: %s", agendamento.servico(), agendamento.data(), agendamento.hora());
                         
                         if (agendamento.data() == null || agendamento.hora() == null) {
