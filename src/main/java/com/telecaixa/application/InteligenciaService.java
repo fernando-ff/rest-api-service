@@ -47,17 +47,19 @@ public class InteligenciaService {
 
         return geminiClient.gerarConteudo(apiKey, request)
                 .onItem().transform(response -> {
-                    if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
+                    if (response == null || response.getCandidates() == null || response.getCandidates().isEmpty()) {
                         throw new IllegalStateException("Gemini retornou resposta vazia ou sem candidates.");
                     }
 
-                    var firstCandidate = response.candidates().get(0);
-                    if (firstCandidate == null || firstCandidate.content() == null || firstCandidate.content().parts() == null || firstCandidate.content().parts().isEmpty()) {
+                    var firstCandidate = response.getCandidates().get(0);
+                    if (firstCandidate == null || firstCandidate.getContent() == null || firstCandidate.getContent().getParts() == null || firstCandidate.getContent().getParts().isEmpty()) {
                         throw new IllegalStateException("Gemini retornou candidate sem conteúdo de partes.");
                     }
 
-                    String text = firstCandidate.content().parts().get(0).text();
-                    return text.replaceAll("```json|```", "").trim();
+                    String rawText = firstCandidate.getContent().getParts().get(0).getText();
+                    Log.infof("🤖 Resposta Raw da Gemini API: %s", rawText);
+                    String cleanedText = rawText.replaceAll("```json|```", "").trim();
+                    return cleanedText;
                 })
                 .onFailure().retry().atMost(3)
                 .onFailure().recoverWithItem(fallbackJson);
