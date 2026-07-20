@@ -1,7 +1,7 @@
 package com.telecaixa.application;
 
+import com.telecaixa.infrastructure.gemini.GeminiRequest;
 import com.telecaixa.infrastructure.gemini.GeminiRestClient;
-import com.telecaixa.infrastructure.gemini.GeminiSpecs.GeminiRequest;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -47,11 +47,19 @@ public class InteligenciaService {
 
         return geminiClient.gerarConteudo(apiKey, request)
                 .onItem().transform(response -> {
-                    // Extrai o texto limpo retornado pela API do Gemini
-                    String text = response.candidates().get(0).content().parts().get(0).text();
+                    if (response == null || response.candidates() == null || response.candidates().isEmpty()) {
+                        throw new IllegalStateException("Gemini retornou resposta vazia ou sem candidates.");
+                    }
+
+                    var firstCandidate = response.candidates().get(0);
+                    if (firstCandidate == null || firstCandidate.content() == null || firstCandidate.content().parts() == null || firstCandidate.content().parts().isEmpty()) {
+                        throw new IllegalStateException("Gemini retornou candidate sem conteúdo de partes.");
+                    }
+
+                    String text = firstCandidate.content().parts().get(0).text();
                     return text.replaceAll("```json|```", "").trim();
                 })
-                .onFailure().retry().atMost(3) // Resiliência: tenta até 3x em caso de 503 ou erro de rede
-                .onFailure().recoverWithItem(fallbackJson); // Retorna o JSON de fallback se a API falhar
+                .onFailure().retry().atMost(3)
+                .onFailure().recoverWithItem(fallbackJson);
     }
 }

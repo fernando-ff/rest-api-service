@@ -3,8 +3,8 @@ package com.telecaixa.infrastructure.gemini;
 import io.smallrye.mutiny.Uni;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
-import com.telecaixa.infrastructure.gemini.GeminiSpecs.GeminiRequest;
-import com.telecaixa.infrastructure.gemini.GeminiSpecs.GeminiResponse;
+import com.telecaixa.infrastructure.gemini.GeminiRequest;
+import com.telecaixa.infrastructure.gemini.GeminiResponse;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
