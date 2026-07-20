@@ -3,6 +3,7 @@ package com.telecaixa.application;
 import com.telecaixa.infrastructure.gemini.GeminiRequest;
 import com.telecaixa.infrastructure.gemini.GeminiRestClient;
 
+import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
