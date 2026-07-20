@@ -2,18 +2,43 @@ name: Deploy Quarkus to OCI Free Tier
 
 on:
   push:
-    branches: [ "main" ] # Triggers the deployment on pushes to main
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  # =========================================================
+  # JOB 1: Testes Unitários e de Integração (JVM Rápida)
+  # =========================================================
+  unit-tests:
+    name: 1. Run Unit Tests
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 1. Set up Java and GraalVM for Native Compilation
+    - name: Set up GraalVM for Testing
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '21'
+        distribution: 'graalvm'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run Maven Tests
+      run: ./mvnw test
+
+  # =========================================================
+  # JOB 2: Build Nativo GraalVM
+  # =========================================================
+  native-build:
+    name: 2. Build Native Executable
+    needs: unit-tests # Só roda se os testes passarem!
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
     - name: Set up GraalVM For Native Compilation
       uses: graalvm/setup-graalvm@v1
       with:
@@ -22,26 +47,46 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         native-image-job-reports: 'true'
 
-    # 2. Build the lightweight native executable
+    # Gera o executável nativo sem reexecutar os testes
     - name: Build Native Executable with Maven
-      run: ./mvnw package -Dnative -Dquarkus.native.container-build=false
+      run: ./mvnw package -Dnative -DskipTests -Dquarkus.native.container-build=false
 
-    # Alternatively, if you use Gradle, uncomment below and comment the maven line:
-    # - name: Build Native Executable with Gradle
-    #   run: ./gradlew build -Dquarkus.package.type=native
+    # Salva o binário nativo como artefato para o Job 3 usar
+    - name: Upload Native Runner Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-runner
+        path: target/*-runner
+        retention-days: 1
 
-    # 3. Copy the native binary to the OCI Instance via SSH/SCP
+  # =========================================================
+  # JOB 3: Deploy na Oracle Cloud Infrastructure (OCI)
+  # =========================================================
+  deploy:
+    name: 3. Deploy to OCI
+    needs: native-build # Só roda se o build nativo tiver sucesso!
+    runs-on: ubuntu-latest
+
+    steps:
+    # Baixa o binário nativo compilado no Job 2
+    - name: Download Native Runner Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: native-runner
+        path: target
+
+    # Copia o binário baixado para a OCI via SCP
     - name: Copy Executable to OCI Instance
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.OCI_HOST_IP }}
         username: ubuntu
         key: ${{ secrets.OCI_SSH_KEY }}
-        source: "target/*-runner" # Matches Quarkus native maven output pattern
+        source: "target/*-runner"
         target: "~/app"
         strip_components: 1
 
-    # 4. SSH into the box, stop old version, and spin up the new one injecting the Secrets
+    # Conecta via SSH para reiniciar o serviço
     - name: Execute Remote Deployment Commands
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -49,26 +94,22 @@ jobs:
         username: ubuntu
         key: ${{ secrets.OCI_SSH_KEY }}
         script: |
-          # Create app directory if missing
           mkdir -p ~/app
           cd ~/app
           
-          # Make binary executable
+          # Garante permissão de execução
           chmod +x *-runner
           
-          # Kill any existing application running on port 8080 smoothly
+          # Encerra graciosa/forçadamente o processo antigo na porta 8080
           PID=$(lsof -t -i:8080)
           if [ -n "$PID" ]; then
             echo "Stopping older instance with PID: $PID"
             kill -15 $PID
             sleep 3
-            # Força a parada caso o processo demore a encerrar
-            kill -9 $PID 2>/dev/null || true
+            kill -9 $PID 2>/devnull || true
           fi
           
-          # Start the new application version cleanly in the background
-          # Native binaries start in milliseconds and use very little memory!
-          # Injecting repository secrets as process-specific environment variables
+          # Inicia a nova versão injetando os Secrets
           nohup env \
             GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
             TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
