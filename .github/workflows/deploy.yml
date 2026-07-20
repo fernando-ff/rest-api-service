@@ -97,6 +97,40 @@ jobs:
           mkdir -p ~/app
           cd ~/app
           
+          # 1. Escreve o JSON de Workload Identity a partir do Secret
+          cat << 'EOF' > google-workload-config.json
+          ${{ secrets.GOOGLE_WORKLOAD_CONFIG }}
+          EOF
+          
+          # 2. Garante permissão de execução no binário
+          chmod +x *-runner
+          
+          # 3. Mata o processo antigo na porta 8080
+          PID=$(lsof -t -i:8080)
+          if [ -n "$PID" ]; then
+            echo "Stopping older instance with PID: $PID"
+            kill -15 $PID
+            sleep 3
+            kill -9 $PID 2>/devnull || true
+          fi
+          
+          # 4. Inicia a nova versão
+          nohup env \
+            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+            GOOGLE_CALENDAR_ID="${{ secrets.GOOGLE_CALENDAR_ID }}" \
+            ./*-runner > app.log 2>&1 &
+          
+          echo "Deployment complete."
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.OCI_HOST_IP }}
+        username: ubuntu
+        key: ${{ secrets.OCI_SSH_KEY }}
+        script: |
+          mkdir -p ~/app
+          cd ~/app
+          
           # Garante permissão de execução
           chmod +x *-runner
           
