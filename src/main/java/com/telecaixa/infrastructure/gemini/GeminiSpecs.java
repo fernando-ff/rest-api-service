@@ -7,30 +7,30 @@ import java.util.List;
 public class GeminiSpecs {
 
     // --- CONTRATO DE ENTRADA (O que enviamos para o Google) ---
-    public record GeminiRequest(List<Content> contents, SystemInstruction systemInstruction) {
+    public record GeminiRequest(List<Content> contents, GenerationConfig generationConfig) {
         public GeminiRequest(String promptSistema, String promptUsuario) {
             this(
-                List.of(new Content(List.of(new Part(promptUsuario)))),
-                new SystemInstruction(List.of(new Part(promptSistema)))
+                List.of(
+                    new Content("system", List.of(new Part(promptSistema))),
+                    new Content("user", List.of(new Part(promptUsuario)))
+                ),
+                new GenerationConfig()
             );
         }
-    }
-    public record SystemInstruction(List<Part> parts) {}
-    public record Content(List<Part> parts) {}
-    public record Part(String text) {}
 
-    // --- CONTRATO DE SAÍDA (O que o Google nos devolve) ---
-    public record GeminiResponse(List<Candidate> candidates) {
-        public String getTextoExtraido() {
-            if (candidates != null && !candidates.isEmpty()) {
-                var parts = candidates.get(0).content().parts();
-                if (parts != null && !parts.isEmpty()) {
-                    return parts.get(0).text();
-                }
-            }
-            throw new IllegalStateException("A IA retornou um payload vazio.");
+        public static record Content(String role, List<Part> parts) {}
+    }
+
+    public static record Part(String text) {}
+
+    public static record GenerationConfig(String responseMimeType) {
+        public GenerationConfig() {
+            this("application/json");
         }
     }
-    public record Candidate(ContentOutput content) {}
-    public record ContentOutput(List<Part> parts) {}
+
+    // --- CONTRATO DE SAÍDA (O que o Google nos devolve) ---
+    public record GeminiResponse(List<Candidate> candidates) {}
+    public record Candidate(Content content) {}
+    public record Content(List<Part> parts) {}
 }
