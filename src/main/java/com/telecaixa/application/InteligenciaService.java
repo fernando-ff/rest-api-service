@@ -1,5 +1,6 @@
 package com.telecaixa.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telecaixa.infrastructure.gemini.GeminiRequest;
 import com.telecaixa.infrastructure.gemini.GeminiRestClient;
 
@@ -17,6 +18,9 @@ public class InteligenciaService {
     @Inject
     @RestClient
     GeminiRestClient geminiClient; // Mantido o nome injetado
+
+    @Inject
+    ObjectMapper objectMapper;
 
     @ConfigProperty(name = "gemini.api.key")
     String apiKey;
@@ -60,7 +64,15 @@ public class InteligenciaService {
                     String rawText = firstCandidate.getContent().getParts().get(0).getText();
                     Log.infof("🤖 Resposta Raw da Gemini API: %s", rawText);
                     String cleanedText = rawText.replaceAll("```json|```", "").trim();
-                    return cleanedText;
+
+                    try {
+                        var agendamento = objectMapper.readValue(cleanedText, AgendamentoDTO.class);
+                        Log.infof("✅ Agendamento parseado com sucesso: %s", agendamento);
+                        return cleanedText;
+                    } catch (Exception e) {
+                        Log.errorf(e, "Falha ao desserializar AgendamentoDTO a partir do JSON limpo: %s", cleanedText);
+                        throw new IllegalStateException("Falha ao processar a resposta do Gemini.", e);
+                    }
                 })
                 .onFailure().retry().atMost(3)
                 .onFailure().recoverWithItem(fallbackJson);
