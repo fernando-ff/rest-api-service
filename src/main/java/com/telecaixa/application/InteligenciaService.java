@@ -1,6 +1,7 @@
 package com.telecaixa.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.telecaixa.infrastructure.gemini.GeminiPromptBuilderService;
 import com.telecaixa.infrastructure.gemini.GeminiRequest;
 import com.telecaixa.infrastructure.gemini.GeminiRestClient;
 
@@ -10,7 +11,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-import java.time.LocalDate;
 
 @ApplicationScoped
 public class InteligenciaService {
@@ -22,28 +22,15 @@ public class InteligenciaService {
     @Inject
     ObjectMapper objectMapper;
 
+    @Inject
+    GeminiPromptBuilderService geminiPromptBuilderService;
+
     @ConfigProperty(name = "gemini.api.key")
     String apiKey;
 
     public Uni<String> extrairDadosAgendamento(String mensagemUsuario) {
-        // Injetamos o ano corrente dinamicamente no prompt para garantir parsing exato de datas
-        String promptSistema = """
-            Você é o interpretador de linguagem natural do sistema ZapAgenda.
-            O usuário enviará uma mensagem tentando agendar um horário. 
-            Sua única função é extrair a Data, a Hora e o Serviço solicitado.
-            Considere que o ano atual é %d.
-            
-            Você deve responder EXCLUSIVAMENTE um objeto JSON puro, sem formatação markdown (NÃO use marcadores ```json ou ```), contendo estes campos:
-            {
-               "data": "AAAA-MM-DD",
-               "hora": "HH:MM:SS",
-               "servico": "NOME_DO_SERVIÇO"
-            }
-            
-            Se faltar alguma informação, preencha o campo correspondente com null.
-            """.formatted(LocalDate.now().getYear());
-
-        GeminiRequest request = new GeminiRequest(promptSistema, mensagemUsuario);
+        GeminiRequest request = geminiPromptBuilderService.buildRequest(mensagemUsuario);
+        String modelName = geminiPromptBuilderService.getGeminiModelName();
 
         // Fallback genérico caso todas as tentativas contra a API do Gemini falhem
         String fallbackJson = """
@@ -58,7 +45,7 @@ public class InteligenciaService {
             Log.errorf(e, "Falha ao serializar GeminiRequest para debug: %s", e.getMessage());
         }
 
-        return geminiClient.gerarConteudo(apiKey, request)
+        return geminiClient.gerarConteudo(modelName, apiKey, request)
                 .onItem().invoke(response -> {
                     if (response == null) {
                         Log.warn("Gemini returned null response object.");

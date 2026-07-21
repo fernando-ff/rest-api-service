@@ -9,6 +9,7 @@ import com.telecaixa.infrastructure.gemini.GeminiResponse;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -18,11 +19,12 @@ import jakarta.ws.rs.core.MediaType;
 public interface GeminiRestClient {
 
     @POST
-    @Path("/gemini-1.5-flash:generateContent")
+    @Path("/{modelName}:generateContent")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     Uni<GeminiResponse> gerarConteudo(
-            @QueryParam("key") String apiKey, 
+            @PathParam("modelName") String modelName,
+            @QueryParam("key") String apiKey,
             GeminiRequest request
     );
 }
