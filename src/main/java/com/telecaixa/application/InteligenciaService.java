@@ -50,7 +50,23 @@ public class InteligenciaService {
             {"data": null, "hora": null, "servico": null}
             """;
 
+        // Log request payload to help debug native deserialization / API behavior
+        try {
+            String requestJson = objectMapper.writeValueAsString(request);
+            Log.infof("→ Gemini Request JSON: %s", requestJson);
+        } catch (Exception e) {
+            Log.errorf(e, "Falha ao serializar GeminiRequest para debug: %s", e.getMessage());
+        }
+
         return geminiClient.gerarConteudo(apiKey, request)
+                .onItem().invoke(response -> {
+                    if (response == null) {
+                        Log.warn("Gemini returned null response object.");
+                    } else {
+                        var size = response.getCandidates() == null ? 0 : response.getCandidates().size();
+                        Log.infof("Gemini returned candidates count: %d", size);
+                    }
+                })
                 .onItem().transform(response -> {
                     if (response == null || response.getCandidates() == null || response.getCandidates().isEmpty()) {
                         throw new IllegalStateException("Gemini retornou resposta vazia ou sem candidates.");
@@ -74,6 +90,7 @@ public class InteligenciaService {
                         throw new IllegalStateException("Falha ao processar a resposta do Gemini.", e);
                     }
                 })
+                .onFailure().invoke(err -> Log.errorf(err, "Erro ao invocar Gemini API: %s", err.getMessage()))
                 .onFailure().retry().atMost(3)
                 .onFailure().recoverWithItem(fallbackJson);
     }
