@@ -1,5 +1,8 @@
 package com.telecaixa.application;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
+
+@RegisterForReflection
 public class AgendamentoDTO {
 
     private String data;
