@@ -14,7 +14,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 
 @RegisterRestClient(configKey = "gemini-api")
-@Path("/models")
+@Path("/v1beta/models")
 public interface GeminiRestClient {
 
     @POST
