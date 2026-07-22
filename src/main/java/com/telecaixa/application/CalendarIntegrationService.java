@@ -51,8 +51,11 @@ public class CalendarIntegrationService {
     String calendarId;
     @ConfigProperty(name = "google.config.path")
     String googleConfigPath;
+    @ConfigProperty(name = "google.calendar.timezone", defaultValue = "America/Sao_Paulo")
+    String calendarTimeZone;
 
     private String resolvedCalendarId;
+    private ZoneId resolvedCalendarZone;
 
     private String resolveCalendarId() {
         if (this.calendarId != null && !this.calendarId.isBlank()) {
@@ -72,11 +75,19 @@ public class CalendarIntegrationService {
     void init() {
         try {
             this.resolvedCalendarId = resolveCalendarId();
-            LOG.infof("Resolved configuration: google.calendar.id='%s'", resolvedCalendarId);
+            this.resolvedCalendarZone = resolveCalendarZone();
+            LOG.infof("Resolved configuration: google.calendar.id='%s', google.calendar.timezone='%s'", resolvedCalendarId, resolvedCalendarZone);
         } catch (Exception e) {
-            LOG.warn("Failed to resolve google.calendar.id", e);
+            LOG.warn("Failed to resolve google calendar configuration", e);
             throw e;
         }
+    }
+
+    private ZoneId resolveCalendarZone() {
+        if (calendarTimeZone != null && !calendarTimeZone.isBlank()) {
+            return ZoneId.of(calendarTimeZone.trim());
+        }
+        return ZoneId.systemDefault();
     }
 
     /**
@@ -85,9 +96,9 @@ public class CalendarIntegrationService {
     public Uni<Boolean> isTimeSlotAvailable(LocalDateTime startDateTime) {
         return Uni.createFrom().item(() -> {
             try {
-                // We define a standard 1-hour appointment window
-                java.time.ZonedDateTime zoneStart = startDateTime.atZone(ZoneId.systemDefault());
-                java.time.ZonedDateTime zoneEnd = startDateTime.plusHours(1).atZone(ZoneId.systemDefault());
+                // We define a standard 1-hour appointment window in the calendar timezone
+                java.time.ZonedDateTime zoneStart = startDateTime.atZone(resolvedCalendarZone);
+                java.time.ZonedDateTime zoneEnd = startDateTime.plusHours(1).atZone(resolvedCalendarZone);
 
                 DateTime timeMin = new DateTime(Date.from(zoneStart.toInstant()));
                 DateTime timeMax = new DateTime(Date.from(zoneEnd.toInstant()));
@@ -113,11 +124,11 @@ public class CalendarIntegrationService {
                         .setSummary(serviceName + " - " + customerInfo)
                         .setDescription("Agendamento efetuado automaticamente via ZapAgenda.");
 
-                java.time.ZonedDateTime zoneStart = startDateTime.atZone(ZoneId.systemDefault());
-                java.time.ZonedDateTime zoneEnd = startDateTime.plusHours(1).atZone(ZoneId.systemDefault());
+                java.time.ZonedDateTime zoneStart = startDateTime.atZone(resolvedCalendarZone);
+                java.time.ZonedDateTime zoneEnd = startDateTime.plusHours(1).atZone(resolvedCalendarZone);
 
-                EventDateTime start = new EventDateTime().setDateTime(new DateTime(Date.from(zoneStart.toInstant())));
-                EventDateTime end = new EventDateTime().setDateTime(new DateTime(Date.from(zoneEnd.toInstant())));
+                EventDateTime start = new EventDateTime().setDateTime(new DateTime(Date.from(zoneStart.toInstant()))).setTimeZone(resolvedCalendarZone.toString());
+                EventDateTime end = new EventDateTime().setDateTime(new DateTime(Date.from(zoneEnd.toInstant()))).setTimeZone(resolvedCalendarZone.toString());
 
                 event.setStart(start);
                 event.setEnd(end);
@@ -190,10 +201,10 @@ public class CalendarIntegrationService {
         body.addProperty("description", description);
         JsonObject start = new JsonObject();
         start.addProperty("dateTime", timeStart);
-        start.addProperty("timeZone", ZoneId.systemDefault().toString());
+        start.addProperty("timeZone", resolvedCalendarZone.toString());
         JsonObject end = new JsonObject();
         end.addProperty("dateTime", timeEnd);
-        end.addProperty("timeZone", ZoneId.systemDefault().toString());
+        end.addProperty("timeZone", resolvedCalendarZone.toString());
         body.add("start", start);
         body.add("end", end);
 
