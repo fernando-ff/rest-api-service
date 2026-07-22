@@ -16,7 +16,7 @@ class TelegramWebhookResourceTest {
     void shouldParseSchedulingPayloadFromGeminiJson() throws Exception {
         String payload = "{\"data\":\"2026-07-16\",\"hora\":\"15:00:00\",\"servico\":\"corte\"}";
 
-        TelegramWebhookResource.DadosAgendamento agendamento = resource.parseDadosAgendamento(payload);
+        DadosAgendamento agendamento = resource.parseDadosAgendamento(payload);
 
         assertEquals("2026-07-16", agendamento.data());
         assertEquals("15:00:00", agendamento.hora());

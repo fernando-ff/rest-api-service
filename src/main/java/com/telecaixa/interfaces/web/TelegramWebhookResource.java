@@ -29,10 +29,6 @@ public class TelegramWebhookResource {
     @Inject
     ObjectMapper objectMapper; // Injetado nativamente pelo Quarkus (Jackson)
 
-    // Record local para mapear o JSON estrito que o Gemini devolve
-    @RegisterForReflection
-    public record DadosAgendamento(String data, String hora, String servico) {}
-
     public DadosAgendamento parseDadosAgendamento(String jsonIa) throws Exception {
         return objectMapper.readValue(jsonIa, DadosAgendamento.class);
     }
@@ -50,7 +46,8 @@ public class TelegramWebhookResource {
 
         Long chatId = update.message().chat().id();
         String textoUsuario = update.message().text();
-        LOG.infof("💬 ChatID: %d | Texto recebido: '%s'", chatId, textoUsuario);
+        String fromName = buildFromName(update.message().from());
+        LOG.infof("💬 ChatID: %d | Usuário: %s | Texto recebido: '%s'", chatId, fromName, textoUsuario);
 
         // Trata o comando inicial do Bot
         if ("/start".equalsIgnoreCase(textoUsuario.trim())) {
@@ -89,7 +86,8 @@ public class TelegramWebhookResource {
                                     }
 
                                     // 3. Se estiver livre, grava o agendamento no Google Calendar
-                                    String infoCliente = "Cliente ChatID: " + chatId;
+                                    String clientName = buildFromName(update.message().from());
+                                    String infoCliente = "Cliente: " + clientName + " (ChatID: " + chatId + ")";
                                     LOG.infof("📅 Realizando booking para serviço: %s, Data: %s, InfoCliente: %s", agendamento.servico(), dataHoraDesejada, infoCliente);
                                     return calendarService.bookAppointment(dataHoraDesejada, infoCliente, agendamento.servico())
                                             .onItem().transform(eventoCriado -> {
@@ -116,5 +114,21 @@ public class TelegramWebhookResource {
                     String erroMsg = "⚠️ Erro interno no servidor: " + err.getMessage();
                     return Response.ok(new TelegramWebhookResponse(chatId, erroMsg)).build();
                 });
+    }
+
+    private String buildFromName(com.telecaixa.infrastructure.telegram.TelegramSpecs.User from) {
+        if (from == null) {
+            return "Usuário desconhecido";
+        }
+        if (from.username() != null && !from.username().isBlank()) {
+            return from.username();
+        }
+        if (from.first_name() != null && from.last_name() != null) {
+            return from.first_name() + " " + from.last_name();
+        }
+        if (from.first_name() != null) {
+            return from.first_name();
+        }
+        return "Usuário " + from.id();
     }
 }
