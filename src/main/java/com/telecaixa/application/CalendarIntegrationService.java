@@ -33,6 +33,8 @@ import org.jboss.logging.Logger;
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
 
@@ -91,8 +93,8 @@ public class CalendarIntegrationService {
                 DateTime timeMax = new DateTime(Date.from(zoneEnd.toInstant()));
 
                 // Use HTTP fallback to query events (avoids Google SDK reflection issues in native image)
-                String timeMinStr = zoneStart.toOffsetDateTime().toString();
-                String timeMaxStr = zoneEnd.toOffsetDateTime().toString();
+                String timeMinStr = zoneStart.toOffsetDateTime().truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                String timeMaxStr = zoneEnd.toOffsetDateTime().truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                 boolean available = queryEventsHttp(resolvedCalendarId, timeMinStr, timeMaxStr);
                 return available;
             } catch (Exception e) {
@@ -121,8 +123,8 @@ public class CalendarIntegrationService {
                 event.setEnd(end);
 
                 // Use HTTP fallback to insert event
-                String timeStart = zoneStart.toOffsetDateTime().toString();
-                String timeEnd = zoneEnd.toOffsetDateTime().toString();
+                String timeStart = zoneStart.toOffsetDateTime().truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                String timeEnd = zoneEnd.toOffsetDateTime().truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                 JsonObject created = insertEventHttp(resolvedCalendarId, timeStart, timeEnd, serviceName + " - " + customerInfo, "Agendamento efetuado automaticamente via ZapAgenda.");
                 // Convert minimal response to Event model: set id and summary
                 Event createdEvent = new Event();
