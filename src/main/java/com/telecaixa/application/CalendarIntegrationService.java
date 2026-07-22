@@ -148,23 +148,35 @@ public class CalendarIntegrationService {
         String encodedCalendar = URLEncoder.encode(calendarId, StandardCharsets.UTF_8);
         String base = String.format("https://www.googleapis.com/calendar/v3/calendars/%s/events?timeMin=%s&timeMax=%s&singleEvents=true", encodedCalendar, URLEncoder.encode(timeMin, StandardCharsets.UTF_8), URLEncoder.encode(timeMax, StandardCharsets.UTF_8));
         URL url = new URL(base);
+        LOG.infof("queryEventsHttp URL=%s", base);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("Authorization", "Bearer " + getAccessToken());
         conn.setRequestProperty("Accept", "application/json");
         int code = conn.getResponseCode();
         InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+        StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
-            JsonArray items = obj.has("items") ? obj.getAsJsonArray("items") : null;
-            return items == null || items.size() == 0;
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
         }
+        String responseBody = sb.toString();
+        LOG.infof("queryEventsHttp responseCode=%d body=%s", code, responseBody);
+        if (code < 200 || code >= 300) {
+            throw new RuntimeException("queryEventsHttp failed: HTTP " + code + " - " + responseBody);
+        }
+        JsonObject obj = JsonParser.parseString(responseBody).getAsJsonObject();
+        JsonArray items = obj.has("items") ? obj.getAsJsonArray("items") : null;
+        return items == null || items.size() == 0;
     }
 
     private JsonObject insertEventHttp(String calendarId, String timeStart, String timeEnd, String summary, String description) throws Exception {
         String encodedCalendar = URLEncoder.encode(calendarId, StandardCharsets.UTF_8);
         String base = String.format("https://www.googleapis.com/calendar/v3/calendars/%s/events", encodedCalendar);
         URL url = new URL(base);
+        LOG.infof("insertEventHttp URL=%s", base);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
@@ -191,8 +203,18 @@ public class CalendarIntegrationService {
 
         int code = conn.getResponseCode();
         InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+        StringBuilder sb = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            return JsonParser.parseReader(reader).getAsJsonObject();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
         }
+        String responseBody = sb.toString();
+        LOG.infof("insertEventHttp responseCode=%d body=%s", code, responseBody);
+        if (code < 200 || code >= 300) {
+            throw new RuntimeException("insertEventHttp failed: HTTP " + code + " - " + responseBody);
+        }
+        return JsonParser.parseString(responseBody).getAsJsonObject();
     }
 }
