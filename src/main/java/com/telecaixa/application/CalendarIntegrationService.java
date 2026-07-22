@@ -62,11 +62,13 @@ public class CalendarIntegrationService {
                 DateTime timeMax = new DateTime(Date.from(zoneEnd.toInstant()));
 
                 // Query overlapping events from the Google grid
-                Events events = googleCalendarClient.events().list(getCalendarId())
+                Calendar.Events.List request = googleCalendarClient.events().list(getCalendarId())
                         .setTimeMin(timeMin)
                         .setTimeMax(timeMax)
-                        .setSingleEvents(true)
-                        .execute();
+                        .setSingleEvents(true);
+
+                LOG.infof("Google Calendar request URL: %s", request.buildHttpRequestUrl());
+                Events events = request.execute();
 
                 List<Event> items = events.getItems();
                 return items == null || items.isEmpty();
