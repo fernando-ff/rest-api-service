@@ -5,10 +5,12 @@ import com.google.api.services.calendar.Calendar;
 import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.EventDateTime;
 import com.google.api.services.calendar.model.Events;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import jakarta.annotation.PostConstruct;
@@ -18,6 +20,7 @@ import java.util.Date;
 import java.util.List;
 
 @ApplicationScoped
+@RegisterForReflection
 public class CalendarIntegrationService {
 
     private static final Logger LOG = Logger.getLogger(CalendarIntegrationService.class);
@@ -25,26 +28,33 @@ public class CalendarIntegrationService {
     @Inject
     Calendar googleCalendarClient;
 
-    @ConfigProperty(name = "google.calendar.id")
+    @ConfigProperty(name = "google.calendar.id", defaultValue = "primary")
     String calendarId;
 
-    private String getCalendarId() {
-        if (calendarId == null) {
-            throw new IllegalStateException("google.calendar.id is not set");
+    private String resolvedCalendarId;
+
+    private String resolveCalendarId() {
+        if (this.calendarId != null && !this.calendarId.isBlank()) {
+            return this.calendarId.trim();
         }
-        String trimmed = calendarId.trim();
-        if (trimmed.isEmpty()) {
-            throw new IllegalStateException("google.calendar.id is empty");
-        }
-        return trimmed;
+
+        return ConfigProvider.getConfig()
+                .getOptionalValue("google.calendar.id", String.class)
+                .filter(s -> !s.isBlank())
+                .or(() -> ConfigProvider.getConfig().getOptionalValue("GOOGLE_CALENDAR_ID", String.class))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .orElse("primary");
     }
 
     @PostConstruct
     void init() {
         try {
-            LOG.infof("Resolved configuration: google.calendar.id='%s'", calendarId);
+            this.resolvedCalendarId = resolveCalendarId();
+            LOG.infof("Resolved configuration: google.calendar.id='%s'", resolvedCalendarId);
         } catch (Exception e) {
-            LOG.warn("Failed to log google.calendar.id", e);
+            LOG.warn("Failed to resolve google.calendar.id", e);
+            throw e;
         }
     }
 
@@ -62,7 +72,8 @@ public class CalendarIntegrationService {
                 DateTime timeMax = new DateTime(Date.from(zoneEnd.toInstant()));
 
                 // Query overlapping events from the Google grid
-                Calendar.Events.List request = googleCalendarClient.events().list(getCalendarId())
+                String activeCalendarId = resolvedCalendarId;
+                Calendar.Events.List request = googleCalendarClient.events().list(activeCalendarId)
                         .setTimeMin(timeMin)
                         .setTimeMax(timeMax)
                         .setSingleEvents(true);
@@ -97,7 +108,7 @@ public class CalendarIntegrationService {
                 event.setStart(start);
                 event.setEnd(end);
 
-                return googleCalendarClient.events().insert(getCalendarId(), event).execute();
+                return googleCalendarClient.events().insert(resolvedCalendarId, event).execute();
             } catch (Exception e) {
                 throw new RuntimeException("Google Calendar write operation failed", e);
             }
